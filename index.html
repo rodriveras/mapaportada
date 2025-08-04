@@ -19,38 +19,26 @@
             padding: 0;
             margin: 0;
         }
-        /* Estilo para el indicador de carga */
-        #loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(255,255,255,0.9);
-            padding: 20px;
-            border-radius: 5px;
-            z-index: 1000;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        /* Estilo para el botón de zoom out */
+        .zoom-home {
+            padding: 3px;
+            background: white;
+            border-radius: 4px;
+            border: 2px solid rgba(0,0,0,0.2);
+            background-clip: padding-box;
+            cursor: pointer;
         }
-        /* Estilo para mensajes de error */
-        .error-message {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255,0,0,0.8);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            z-index: 1000;
-            display: none;
+        .zoom-home i {
+            width: 18px;
+            height: 18px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="black"><path d="M10 4v2h2.59l-6.3 6.29 1.42 1.42 6.29-6.3V14h2V4zm8 16h-6v-2h3.59l-6.29-6.29-1.42 1.42 6.3 6.29H14v2h6z"/></svg>') no-repeat center center;
+            display: inline-block;
         }
         </style>
         <title>SinCorredor.cl</title>
     </head>
     <body>
         <div id="map"></div>
-        <div id="loading">Cargando mapa, por favor espere...</div>
-        <div id="error" class="error-message"></div>
         
         <script src="js/qgis2web_expressions.js"></script>
         <script src="js/leaflet.js"></script>
@@ -64,32 +52,19 @@
         <script src="js/labelgun.min.js"></script>
         <script src="js/labels.js"></script>
         <script src="js/leaflet.photon.js"></script>
+        <script src="data/Parcelas_2.js"></script>
+        <script src="data/Proyectos_3.js"></script>
         
         <script>
-        // Mostrar indicador de carga
-        document.getElementById('loading').style.display = 'block';
-        
-        // Función para mostrar errores
-        function showError(message) {
-            var errorDiv = document.getElementById('error');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            setTimeout(function() {
-                errorDiv.style.display = 'none';
-            }, 5000);
-        }
-        
-        // Verificar si Leaflet se cargó correctamente
-        if (typeof L === 'undefined') {
-            showError('Error: No se pudo cargar la biblioteca Leaflet.js');
-        }
+        // Definir los límites iniciales del mapa
+        var initialBounds = [[-36.758916645231956,-72.86067052892878],[-36.10072985826496,-71.18813577080864]];
         
         // Crear el mapa
         var map = L.map('map', {
             zoomControl: false,
             maxZoom: 28,
             minZoom: 1
-        }).fitBounds([[-36.758916645231956,-72.86067052892878],[-36.10072985826496,-71.18813577080864]]);
+        }).fitBounds(initialBounds);
         
         var hash = new L.Hash(map);
         map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
@@ -143,11 +118,28 @@
         
         // Control de ubicación
         L.control.locate({
-            locateOptions: {maxZoom: 19},
-            strings: {
-                title: "Mostrar mi ubicación"
-            }
+            locateOptions: {maxZoom: 19}
         }).addTo(map);
+        
+        // Botón para volver a la vista inicial
+        var zoomHome = L.Control.extend({
+            options: {
+                position: 'topleft'
+            },
+            onAdd: function(map) {
+                var container = L.DomUtil.create('div', 'zoom-home leaflet-bar');
+                container.title = 'Volver a vista inicial';
+                container.innerHTML = '<i></i>';
+                container.style.marginTop = '10px';
+                
+                container.onclick = function() {
+                    map.flyToBounds(initialBounds);
+                };
+                
+                return container;
+            }
+        });
+        map.addControl(new zoomHome());
         
         // Grupo para límites
         var bounds_group = new L.featureGroup([]);
@@ -158,7 +150,7 @@
         var layer_Hibrido_0 = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
             pane: 'pane_Hibrido_0',
             opacity: 0.825,
-            attribution: 'Google Maps',
+            attribution: '',
             minZoom: 1,
             maxZoom: 28,
             minNativeZoom: 0,
@@ -170,7 +162,7 @@
         var layer_OpenStreetMap_1 = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             pane: 'pane_OpenStreetMap_1',
             opacity: 1.0,
-            attribution: '© OpenStreetMap contributors',
+            attribution: '',
             minZoom: 1,
             maxZoom: 28,
             minNativeZoom: 0,
@@ -179,22 +171,6 @@
         
         // Añadir capa base por defecto
         map.addLayer(layer_Hibrido_0);
-        
-        // Cargar datos GeoJSON con manejo de errores
-        function loadGeoJSON(url, callback) {
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Error al cargar ' + url);
-                    }
-                    return response.json();
-                })
-                .then(data => callback(data))
-                .catch(error => {
-                    showError('Error al cargar datos: ' + error.message);
-                    console.error(error);
-                });
-        }
         
         // Función para parcelas
         function pop_Parcelas_2(feature, layer) {
@@ -221,7 +197,7 @@
                     </tr>\
                     <tr>\
                         <th scope="row">Foto</th>\
-                        <td>' + (feature.properties['Foto'] !== null ? '<img src="images/' + String(feature.properties['Foto']).replace(/[\\/:]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '" onerror="this.style.display=\'none\'">' : '') + '</td>\
+                        <td>' + (feature.properties['Foto'] !== null ? '<img src="images/' + String(feature.properties['Foto']).replace(/[\\/:]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
                     </tr>\
                 </table>';
                 
@@ -248,7 +224,7 @@
             }
         }
         
-        // Función para proyectos
+        // Función para proyectos con zoom al hacer clic
         function pop_Proyectos_3(feature, layer) {
             var popupContent = '<table>\
                     <tr>\
@@ -259,6 +235,26 @@
             layer.on('popupopen', function(e) {
                 addClassToPopupIfMedia(content, e.popup);
             });
+            
+            // Zoom al hacer clic en el marcador
+            layer.on('click', function(e) {
+                // Obtener los límites del feature
+                var bounds = layer.getBounds();
+                if (!bounds.isValid()) {
+                    // Si es un punto, crear un bounds alrededor con zoom 15
+                    var point = layer.getLatLng();
+                    bounds = L.latLngBounds(
+                        [point.lat - 0.01, point.lng - 0.01],
+                        [point.lat + 0.01, point.lng + 0.01]
+                    );
+                }
+                // Hacer zoom con animación
+                map.flyToBounds(bounds, {
+                    padding: [50, 50], // padding en píxeles
+                    maxZoom: 17 // zoom máximo
+                });
+            });
+            
             layer.bindPopup(content, { maxHeight: 400 });
         }
         
@@ -269,16 +265,13 @@
                 rotationOrigin: 'center center',
                 icon: L.icon({
                     iconUrl: 'markers/Proyectos_3.svg',
-                    iconSize: [76.0, 76.0],
-                    // Añadir icono de fallback en caso de error
-                    iconRetinaUrl: 'markers/Proyectos_3.png',
-                    errorIconUrl: 'markers/default-marker.png'
+                    iconSize: [76.0, 76.0]
                 }),
                 interactive: true,
             }
         }
         
-        // Cargar capas GeoJSON
+        // Crear paneles
         map.createPane('pane_Parcelas_2');
         map.getPane('pane_Parcelas_2').style.zIndex = 402;
         map.getPane('pane_Parcelas_2').style['mix-blend-mode'] = 'normal';
@@ -287,106 +280,86 @@
         map.getPane('pane_Proyectos_3').style.zIndex = 403;
         map.getPane('pane_Proyectos_3').style['mix-blend-mode'] = 'normal';
         
-        // Cargar datos GeoJSON
-        Promise.all([
-            new Promise((resolve) => loadGeoJSON('data/Parcelas_2.js', resolve)),
-            new Promise((resolve) => loadGeoJSON('data/Proyectos_3.js', resolve))
-        ]).then(([parcelasData, proyectosData]) => {
-            // Capa de parcelas
-            var layer_Parcelas_2 = new L.geoJson(parcelasData, {
-                attribution: '',
-                interactive: true,
-                layerName: 'layer_Parcelas_2',
-                pane: 'pane_Parcelas_2',
-                onEachFeature: pop_Parcelas_2,
-                style: style_Parcelas_2_0,
-            });
-            bounds_group.addLayer(layer_Parcelas_2);
-            
-            // Capa de proyectos
-            var layer_Proyectos_3 = new L.geoJson(proyectosData, {
-                attribution: '',
-                interactive: true,
-                layerName: 'layer_Proyectos_3',
-                pane: 'pane_Proyectos_3',
-                onEachFeature: pop_Proyectos_3,
-                pointToLayer: function (feature, latlng) {
-                    var context = {
-                        feature: feature,
-                        variables: {}
-                    };
-                    return L.marker(latlng, style_Proyectos_3_0(feature));
-                },
-            });
-            bounds_group.addLayer(layer_Proyectos_3);
-            
-            // Añadir capas al mapa
-            map.addLayer(layer_Parcelas_2);
-            map.addLayer(layer_Proyectos_3);
-            
-            // Control de capas
-            var overlaysTree = [
-                {label: '<img src="legend/Proyectos_3.png" onerror="this.src=\'legend/default-legend.png\'" /> Proyectos', layer: layer_Proyectos_3},
-                {label: '<img src="legend/Parcelas_2.png" onerror="this.src=\'legend/default-legend.png\'" /> Parcelas', layer: layer_Parcelas_2},
-                {label: "OpenStreetMap", layer: layer_OpenStreetMap_1, radioGroup: 'bm' },
-                {label: "Híbrido", layer: layer_Hibrido_0, radioGroup: 'bm' },
-            ];
-            
-            var lay = L.control.layers.tree(null, overlaysTree, {
-                collapsed: true,
-            });
-            lay.addTo(map);
-            
-            // Manejo de etiquetas
-            var i = 0;
-            layer_Proyectos_3.eachLayer(function(layer) {
+        // Capa de parcelas
+        var layer_Parcelas_2 = new L.geoJson(json_Parcelas_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Parcelas_2',
+            layerName: 'layer_Parcelas_2',
+            pane: 'pane_Parcelas_2',
+            onEachFeature: pop_Parcelas_2,
+            style: style_Parcelas_2_0,
+        });
+        bounds_group.addLayer(layer_Parcelas_2);
+        map.addLayer(layer_Parcelas_2);
+        
+        // Capa de proyectos
+        var layer_Proyectos_3 = new L.geoJson(json_Proyectos_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Proyectos_3',
+            layerName: 'layer_Proyectos_3',
+            pane: 'pane_Proyectos_3',
+            onEachFeature: pop_Proyectos_3,
+            pointToLayer: function (feature, latlng) {
                 var context = {
-                    feature: layer.feature,
+                    feature: feature,
                     variables: {}
                 };
-                layer.bindTooltip((layer.feature.properties['Proyecto'] !== null?String('<div style="color: #fde725; font-size: 9pt; font-family: \'Arial\', sans-serif;">' + layer.feature.properties['Proyecto']) + '</div>':''), {
-                    permanent: true,
-                    offset: [-0, -16],
-                    className: 'css_Proyectos_3'
-                });
-                labels.push(layer);
-                totalMarkers += 1;
-                layer.added = true;
-                addLabel(layer, i);
-                i++;
+                return L.marker(latlng, style_Proyectos_3_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Proyectos_3);
+        map.addLayer(layer_Proyectos_3);
+        
+        // Control de capas
+        var overlaysTree = [
+            {label: '<img src="legend/Proyectos_3.png" /> Proyectos', layer: layer_Proyectos_3},
+            {label: '<img src="legend/Parcelas_2.png" /> Parcelas', layer: layer_Parcelas_2},
+            {label: "OpenStreetMap", layer: layer_OpenStreetMap_1, radioGroup: 'bm' },
+            {label: "Híbrido", layer: layer_Hibrido_0, radioGroup: 'bm' },
+        ];
+        
+        var lay = L.control.layers.tree(null, overlaysTree, {
+            collapsed: true,
+        });
+        lay.addTo(map);
+        
+        // Manejo de etiquetas
+        var i = 0;
+        layer_Proyectos_3.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Proyecto'] !== null?String('<div style="color: #fde725; font-size: 9pt; font-family: \'Arial\', sans-serif;">' + layer.feature.properties['Proyecto']) + '</div>':''), {
+                permanent: true,
+                offset: [-0, -16],
+                className: 'css_Proyectos_3'
             });
-            
-            // Función para mostrar/ocultar etiquetas según el zoom
-            function updateLabels() {
-                var currentZoom = map.getZoom();
-                // Mostrar etiquetas entre zoom 10 y 18
-                if (currentZoom >= 10 && currentZoom <= 18) {
-                    layer_Proyectos_3.eachLayer(function(layer) {
-                        layer.openTooltip();
-                    });
-                } else {
-                    layer_Proyectos_3.eachLayer(function(layer) {
-                        layer.closeTooltip();
-                    });
-                }
-            }
-            
-            // Actualizar etiquetas al cambiar el zoom
-            map.on("zoomend", updateLabels);
-            updateLabels(); // Ejecutar al cargar
-            
-            // Ocultar indicador de carga
-            document.getElementById('loading').style.display = 'none';
-            
-        }).catch(error => {
-            showError('Error al cargar los datos del mapa: ' + error.message);
-            document.getElementById('loading').style.display = 'none';
+            labels.push(layer);
+            totalMarkers += 1;
+            layer.added = true;
+            addLabel(layer, i);
+            i++;
         });
         
-        // Manejo de redimensionamiento
-        window.addEventListener('resize', function() {
-            map.invalidateSize();
-        });
+        // Función para mostrar/ocultar etiquetas según el zoom
+        function updateLabels() {
+            var currentZoom = map.getZoom();
+            if (currentZoom <= 9 || currentZoom >= 19) {
+                layer_Proyectos_3.eachLayer(function(layer) {
+                    layer.closeTooltip();
+                });
+            } else {
+                layer_Proyectos_3.eachLayer(function(layer) {
+                    layer.openTooltip();
+                });
+            }
+        }
+        
+        map.on("zoomend", updateLabels);
+        updateLabels();
         </script>
     </body>
 </html>
